@@ -1,0 +1,11 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /home/paddy/repos/play2gether/opencv43/src/main/AndroidManifest.xml:2:1-4:12
+INJECTED from /home/paddy/repos/play2gether/opencv43/src/main/AndroidManifest.xml:2:1-4:12
+INJECTED from /home/paddy/repos/play2gether/opencv43/src/main/AndroidManifest.xml:2:1-4:12
+	package
+		ADDED from /home/paddy/repos/play2gether/opencv43/src/main/AndroidManifest.xml:3:7-27
+		INJECTED from /home/paddy/repos/play2gether/opencv43/src/main/AndroidManifest.xml
+		INJECTED from /home/paddy/repos/play2gether/opencv43/src/main/AndroidManifest.xml
+	xmlns:android
+		ADDED from /home/paddy/repos/play2gether/opencv43/src/main/AndroidManifest.xml:2:11-69

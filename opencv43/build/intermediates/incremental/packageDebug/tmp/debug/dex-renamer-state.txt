@@ -1,0 +1,4 @@
+#Sat May 02 11:44:40 CEST 2020
+base.0=/home/paddy/repos/play2gether/opencv43/build/intermediates/dex/debug/out/classes.dex
+path.0=classes.dex
+renamed.0=classes.dex
