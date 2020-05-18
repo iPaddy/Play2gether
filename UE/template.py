@@ -26,7 +26,6 @@ def load_obj(path):
 
 # Task 1
 vtx, idx = load_obj(".\\bunny.obj")
-#vtx, idx = load_obj("C:\\Users\\Victoria\\Desktop\\Uni\\importantUNI\\SoSe20\\VRAR\\UE\\venv\\bunny.obj")
 
 img = np.ones((480,640,3),np.uint8)*0
 color = (0,0,255)
@@ -55,7 +54,9 @@ img1 = np.ones((480,640,3),np.uint8)*0
 pts,_ = cv2.projectPoints(objectPoints=vtx,rvec=R,tvec=t,cameraMatrix=K,distCoeffs=distCoeffs)
 pts = np.array([np.floor(p) for p in pts], np.int32)
 
+#a = [ind for ind in idx if np.cross(pts[ind[1]]-pts[ind[0]],pts[ind[2]]-pts[ind[0]]) <= 0]
 a = [ind for ind in idx if np.cross(pts[ind[1]]-pts[ind[0]],pts[ind[2]]-pts[ind[0]]) <= 0]
+
 for ind in a:
     cv2.polylines(img=img1,pts=[pts[ind]],isClosed=True,color=color,thickness=1,lineType=cv2.LINE_AA)
 
@@ -66,18 +67,26 @@ cv2.waitKey(0)
 
 ### Task 3
 img2 = np.ones((480,640,3),np.uint8)*0
+img3 = np.ones((480,640,3),np.uint8)*0
 
-visiableIdx = np.array([ind for ind in idx if np.cross(pts[ind[1]]-pts[ind[0]],pts[ind[2]]-pts[ind[0]]) <= 0])
+#visiableIdx = np.array([print('pts',pts[ind],'p0',pts[ind[0]],'p1',pts[ind[1]],'p2',pts[ind[2]],'ind',ind,'cross',np.cross(pts[ind[1]]-pts[ind[0]],pts[ind[2]]-pts[ind[0]])) for ind in idx if np.cross(pts[ind[1]]-pts[ind[0]],pts[ind[2]]-pts[ind[0]]) < 0])
+
+visiableIdx = np.array([ind for ind in idx if np.cross(pts[ind[1]]-pts[ind[0]],pts[ind[2]]-pts[ind[0]]) < 0])
 
 # calculate normals
 normals = np.zeros((np.shape(idx)[0],3))
+
+normals2 = np.zeros((np.shape(idx)[0],3))
+
 i = 0
 perVertex = False
 perFace = not perVertex
 
 if perFace:
-     for ind in visiableIdx:
-        normals[i] = np.cross(vtx[ind[2]]-vtx[ind[0]],vtx[ind[1]]-vtx[ind[0]])[0]
+     for ind in idx:
+        #normals[i] = np.cross(vtx[ind[1]]-vtx[ind[0]],vtx[ind[2]]-vtx[ind[0]])[0]
+        normals[i] = np.cross(vtx[ind[1]]-vtx[ind[0]],vtx[ind[2]]-vtx[ind[0]])
+
         i += 1
 if perVertex:
     for ind in idx:
@@ -88,24 +97,28 @@ if perVertex:
 # transform normals in camera cs
 R_mat,_ = cv2.Rodrigues(R)
 
-normals = np.array([(R_mat @ xi)  for xi in normals if not (np.linalg.norm(xi) == 0.0)])
-normals = np.array([xi/np.linalg.norm(xi) for xi in normals if not (np.linalg.norm(xi) == 0.0)])
+normals = np.array([(R_mat @ xi)  for xi in normals])
 
+normals = np.array([xi/np.linalg.norm(xi) for xi in normals if not (np.linalg.norm(xi) == 0.0)])
 
 pts,_ = cv2.projectPoints(objectPoints=vtx,rvec=R,tvec=t,cameraMatrix=K,distCoeffs=distCoeffs)
 pts = np.array([np.floor(p) for p in pts], np.int32)
 
+
 j = 0
-for ind in visiableIdx:
+for ind in idx:
     # d = z component of normal because of L=[0,0,1]
     if perVertex:
         d = ((normals[ind[0]]+normals[ind[1]]+normals[ind[2]])/np.linalg.norm(normals[ind[0]]+normals[ind[1]]+normals[ind[2]]))[2]
     if perFace:
-        d = normals[j,2]/np.linalg.norm(normals[j,0]+normals[j,1]+normals[j,2])
+        d = normals[j,2]
         j += 1
-    if d > 0:
-        cv2.fillConvexPoly(img=img2,points=pts[ind],color=(d*255,0,d*255),lineType=cv2.LINE_AA)
+        if d <= 0:
+            cv2.fillConvexPoly(img=img2,points=pts[ind],color=(-1*d*255,0,-1*d*255))
 
 cv2.imshow('VRAR Task 3',img2)
 cv2.imwrite('task3.png',img2)
+
+#ref_img = cv2.imread('task3_ref.png')
+#cv2.imshow('Minus',ref_img-img2)
 cv2.waitKey(0)
