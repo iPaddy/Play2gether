@@ -6,7 +6,8 @@ def main():
     # cam.take_picture()
     # cam.calibrate()
     # cam.show_video()
-    cam.find_features()
+    # cam.compare_features()
+    cam.find_features_video(detector="shi")
 
 
 if __name__ == '__main__':

@@ -27,73 +27,95 @@ class Camera:
 
     def load_test_image(self):
         img = cv2.imread("pics/chess2.jpg")
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        # img = cv2.resize(img, (600, 400))
+        # img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         # plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)), plt.show()
         return img
 
-    def find_features(self):
-        # load test image
-        img = self.load_test_image()
+# TODO split so that the input decides which feature to compare
+    def find_features(self, detector="orb", test=True):
+        if test:
+            # load test image
+            img = self.load_test_image()
+        else:
+            _, img = self.cam.read()
 
         # fast feature detector
-        fast = cv2.FastFeatureDetector.create()
-        kpf = fast.detect(img, None)
-        img_fast = cv2.drawKeypoints(img, kpf, None, color=(0, 255, 0), flags=0)
+        if detector == "fast":
+            fast = cv2.FastFeatureDetector.create()
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            kpf = fast.detect(img, None)
+            img = cv2.drawKeypoints(img, kpf, None, color=(0, 255, 0), flags=0)
+            return img
 
         # orb feature detector
-        orb = cv2.ORB_create()
-        kpo = orb.detect(img, None)
-        kpo, des = orb.compute(img, kpo)
-        img_orb = cv2.drawKeypoints(img, kpo, None, color=(0, 255, 0), flags=0)
+        if detector == "orb":
+            orb = cv2.ORB_create()
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            kpo = orb.detect(img, None)
+            kpo, des = orb.compute(img, kpo)
+            img = cv2.drawKeypoints(img, kpo, None, color=(0, 255, 0), flags=0)
+            return img
 
         # shi-tomasi corner detector
-        img_shi = img
-        corners = cv2.goodFeaturesToTrack(img_shi, maxCorners=100, qualityLevel=0.01, minDistance=10)
-        corners - np.int0(corners)
-        for i in corners:
-            x, y = i.ravel()
-            cv2.circle(img_shi, center=(x, y), radius=5, color=(0, 255, 0), thickness=-1)
+        if detector == "shi":
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            corners = cv2.goodFeaturesToTrack(img, maxCorners=100, qualityLevel=0.01, minDistance=10)
+            corners - np.int0(corners)
+            for i in corners:
+                x, y = i.ravel()
+                cv2.circle(img, center=(x, y), radius=3, color=(255, 0, 255), thickness=-1)
+            return img
 
         # harris corner detector
-        thresh = 150
-        img_harris = img
-        img_harris = np.float32(img_harris)
-        dst = cv2.cornerHarris(img_harris, blockSize=2, ksize=3, k=0.04)
-        dst_norm = np.empty(dst.shape, dtype=np.float32)
-        cv2.normalize(dst, dst_norm, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
-        dst_norm_scaled = cv2.convertScaleAbs(dst_norm)
-        for i in range(dst_norm.shape[0]):
-            for j in range(dst_norm.shape[1]):
-                if int(dst_norm[i, j]) > thresh:
-                    cv2.circle(dst_norm_scaled, center=(j, i), radius=5, color=0)
+        if detector == "harris":
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            thresh = 150
+            img = np.float32(img)
+            dst = cv2.cornerHarris(img, blockSize=2, ksize=3, k=0.04)
+            dst_norm = np.empty(dst.shape, dtype=np.float32)
+            cv2.normalize(dst, dst_norm, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
+            dst_norm_scaled = cv2.convertScaleAbs(dst_norm)
+            for i in range(dst_norm.shape[0]):
+                for j in range(dst_norm.shape[1]):
+                    if int(dst_norm[i, j]) > thresh:
+                        cv2.circle(dst_norm_scaled, center=(j, i), radius=5, color=0)
+            return dst_norm_scaled
+
+        else:
+            print("detector not implemented. Try using one of the following: orb, fast, shi, harris")
+
+    def compare_features(self, feat1="orb", feat2="fast", feat3="shi", feat4="harris"):
+        """
+        compares up to four feature finding functions
+
+        plotting them against each other in a grid
+        """
+        img0 = self.find_features(feat1)
+        img1 = self.find_features(feat2)
+        img2 = self.find_features(feat3)
+        img3 = self.find_features(feat4)
 
         fig = plt.figure(figsize=(4, 4))
         fig.add_subplot(2, 2, 1)
-        plt.imshow(img_orb)
+        plt.imshow(cv2.cvtColor(img0, cv2.COLOR_BGR2RGB))
         fig.add_subplot(2, 2, 2)
-        plt.imshow(img_fast)
+        plt.imshow(cv2.cvtColor(img1, cv2.COLOR_BGR2RGB))
         fig.add_subplot(2, 2, 3)
-        plt.imshow(cv2.cvtColor(img_shi, cv2.COLOR_BGR2RGB))
+        plt.imshow(cv2.cvtColor(img2, cv2.COLOR_BGR2RGB))
         fig.add_subplot(2, 2, 4)
-        plt.imshow(cv2.cvtColor(dst_norm_scaled, cv2.COLOR_BGR2RGB))
+        plt.imshow(cv2.cvtColor(img3, cv2.COLOR_BGR2RGB))
 
         plt.show()
 
-    def find_features_video(self):
+    def find_features_video(self, detector="shi"):
 
         while(True):
             # read from video input
             _, img = self.cam.read()
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-            # orb feature detector
-            orb = cv2.ORB_create()
-            kpo = orb.detect(gray, None)
-            kpo, des = orb.compute(gray, kpo)
-            gray = cv2.drawKeypoints(gray, kpo, None, color=(0, 255, 0), flags=0)
+            img = self.find_features(detector, test=False)
 
-            cv2.imshow('frame', gray)
+            cv2.imshow('frame', cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
