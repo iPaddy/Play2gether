@@ -6,8 +6,6 @@ from matplotlib import pyplot as plt
 class Camera:
     def __init__(self, video_feed=0):
         self.cam = cv2.VideoCapture(video_feed)
-        # cam.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        # cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
     def show_video(self):
         while(True):
@@ -24,7 +22,7 @@ class Camera:
 
     def take_picture(self):
         _, img = self.cam.read()
-        cv2.imwrite("output_image.png", img)
+        cv2.imwrite("pics/image_capture.png", img)
         return img
 
     def load_test_image(self):
@@ -82,13 +80,25 @@ class Camera:
 
         plt.show()
 
-    def find_features_fast(self):
-        img = self.load_test_image()
-        fast = cv2.FastFeatureDetector()
-        kp = fast.detect(img, None)
-        kp, des = fast.compute(img, kp)
-        img2 = cv2.drawKeypoints(img, kp, None, color=(0, 255, 0), flags=0)
-        plt.imshow(img2), plt.show()
+    def find_features_video(self):
+
+        while(True):
+            # read from video input
+            _, img = self.cam.read()
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+            # orb feature detector
+            orb = cv2.ORB_create()
+            kpo = orb.detect(gray, None)
+            kpo, des = orb.compute(gray, kpo)
+            gray = cv2.drawKeypoints(gray, kpo, None, color=(0, 255, 0), flags=0)
+
+            cv2.imshow('frame', gray)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+        self.cam.release()
+        cv2.destroyAllWindows()
 
     def calibrate(self):
         # here should be a calibration function as we should be able to use different webcams and phones
