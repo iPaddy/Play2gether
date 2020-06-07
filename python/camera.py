@@ -81,6 +81,41 @@ class Camera:
                         cv2.circle(dst_norm_scaled, center=(j, i), radius=5, color=0)
             return dst_norm_scaled
 
+        if detector == "sift":
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            sift = cv2.xfeatures2d.SIFT_create()
+            kps, desc = sift.detectAndCompute(img, None)
+            img = cv2.drawKeypoints(img, kps, None, color=(0, 255, 0), flags=0)
+            return img
+
+        if detector == "surf":
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            surf = cv2.xfeatures2d.SURF_create()
+            kps, desc = surf.detectAndCompute(img, None)
+            img = cv2.drawKeypoints(img, kps, None, color=(0, 255, 0), flags=0)
+            return img
+
+        if detector == "kaze":
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            kaze = cv2.KAZE_create()
+            kps, desc = kaze.detectAndCompute(img, None)
+            img = cv2.drawKeypoints(img, kps, None, color=(0, 255, 0), flags=0)
+            return img
+
+        if detector == "akaze":
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            akaze = cv2.AKAZE_create()
+            kps, desc = akaze.detectAndCompute(img, None)
+            img = cv2.drawKeypoints(img, kps, None, color=(0, 255, 0), flags=0)
+            return img
+
+        if detector == "brisk":
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            brisk = cv2.BRISK_create()
+            kps, desc = brisk.detectAndCompute(img, None)
+            img = cv2.drawKeypoints(img, kps, None, color=(0, 255, 0), flags=0)
+            return img
+
         else:
             print("detector not implemented. Try using one of the following: orb, fast, shi, harris")
 

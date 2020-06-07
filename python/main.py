@@ -7,7 +7,7 @@ def main():
     # cam.calibrate()
     # cam.show_video()
     # cam.compare_features()
-    cam.find_features_video(detector="shi")
+    cam.find_features_video(detector="surf")
 
 
 if __name__ == '__main__':
