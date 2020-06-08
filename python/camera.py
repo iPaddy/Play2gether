@@ -22,11 +22,11 @@ class Camera:
 
     def take_picture(self):
         _, img = self.cam.read()
-        cv2.imwrite("pics/image_capture.png", img)
+        cv2.imwrite("pics/test_board.png", img)
         return img
 
     def load_test_image(self):
-        img = cv2.imread("pics/chess2.jpg")
+        img = cv2.imread("pics/test_board.png")
         # img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         # plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)), plt.show()
         return img
@@ -34,10 +34,49 @@ class Camera:
     def load_board_reference(self):
         img = cv2.resize(cv2.imread("pics/board.jpg"), (640, 480))
         kps, desc = self.find_features("surf", test=False, visual=False, img=img)
-        plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)), plt.show()
+        # plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)), plt.show()
         return kps, desc
 
-    def find_features(self, detector="orb", test=False, visual=True, img_loc=None, img=None):
+    def find_board(self, min_n_matches=10):
+        board_img = cv2.resize(cv2.imread("pics/board.jpg"), (640, 480))
+        # img = self.load_test_image()
+        _, img = self.cam.read()
+        kp1, desc1 = self.load_board_reference()
+        kp2, desc2 = self.find_features(detector="surf", visual=False)
+
+        flann_index = 1
+        index_params = dict(algorithm=flann_index, trees=5)
+        search_params = dict(checks=50)
+
+        flann = cv2.FlannBasedMatcher(index_params, search_params)
+        matches = flann.knnMatch(desc1, desc2, k=2)
+        # store good matches
+        good = []
+        for m, n in matches:
+            if m.distance < 0.7*n.distance:
+                good.append(m)
+
+        # enough matches are found
+        if len(good) > min_n_matches:
+            src_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
+            dst_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
+
+            M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+            matchesMask = mask.ravel().tolist()
+            h, w, d = board_img.shape
+            pts = np.float32([[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]]).reshape(-1, 1, 2)
+            dst = cv2.perspectiveTransform(pts, M)
+            img2 = cv2.polylines(img, [np.int32(dst)], True, 255, 3, cv2.LINE_AA)
+
+        else:
+            print("Not enough matches are found - {}/{}".format(len(good), min_n_matches))
+            matchesMask = None
+
+        draw_params = dict(matchColor=(0, 255, 0), singlePointColor=None, matchesMask=matchesMask, flags=2)
+        out_img = cv2.drawMatches(board_img, kp1, img2, kp2, good, None, **draw_params)
+        plt.imshow(cv2.cvtColor(out_img, cv2.COLOR_BGR2RGB), 'gray'), plt.show()
+
+    def find_features(self, detector="orb", test=False, visual=False, img_loc=None, img=None):
         """
         Function for choosing different feature detectors
 
@@ -53,7 +92,7 @@ class Camera:
         if test and img_loc is None and img is None:
             # load test image
             img = self.load_test_image()
-        if img_loc is None and img is None:
+        if not test and img_loc is None and img is None:
             _, img = self.cam.read()
         try:
             if img_loc is not None:
@@ -174,10 +213,10 @@ class Camera:
 
         plotting them against each other in a grid
         """
-        img0 = self.find_features(feat1)
-        img1 = self.find_features(feat2)
-        img2 = self.find_features(feat3)
-        img3 = self.find_features(feat4)
+        img0 = self.find_features(feat1, visual=True)
+        img1 = self.find_features(feat2, visual=True)
+        img2 = self.find_features(feat3, visual=True)
+        img3 = self.find_features(feat4, visual=True)
 
         fig = plt.figure(figsize=(4, 4))
         fig.add_subplot(2, 2, 1)
