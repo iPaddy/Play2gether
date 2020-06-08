@@ -8,7 +8,7 @@ class Camera:
         self.cam = cv2.VideoCapture(video_feed)
 
     def show_video(self):
-        while(True):
+        while (True):
             ret, frame = self.cam.read()
 
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -31,13 +31,35 @@ class Camera:
         # plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)), plt.show()
         return img
 
-# TODO split so that the input decides which feature to compare
-    def find_features(self, detector="orb", test=True):
-        if test:
+    def load_board_reference(self):
+        img = cv2.resize(cv2.imread("pics/board.jpg"), (640, 480))
+        kps, desc = self.find_features("surf", test=False, visual=False, img=img)
+        plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)), plt.show()
+        return kps, desc
+
+    def find_features(self, detector="orb", test=False, visual=True, img_loc=None, img=None):
+        """
+        Function for choosing different feature detectors
+
+        :param detector:string, choose a detector
+        :param test:bool, if True it reads from a test image, otherwise from a video stream
+        :param visual:bool decides if an image is returned or the descriptors etc
+        depends on the detection used how many and which arguments are returned. Take care
+        :param img_loc:string, path to a image to be analysed
+        :param img:np.array
+        :return: image or descriptors
+        """
+
+        if test and img_loc is None and img is None:
             # load test image
             img = self.load_test_image()
-        else:
+        if img_loc is None and img is None:
             _, img = self.cam.read()
+        try:
+            if img_loc is not None:
+                img = cv2.imread(img_loc)
+        except:
+            print("could not read image")
 
         # fast feature detector
         if detector == "fast":
@@ -45,7 +67,10 @@ class Camera:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             kpf = fast.detect(img, None)
             img = cv2.drawKeypoints(img, kpf, None, color=(0, 255, 0), flags=0)
-            return img
+            if visual:
+                return img
+            else:
+                return kpf
 
         # orb feature detector
         if detector == "orb":
@@ -54,7 +79,10 @@ class Camera:
             kpo = orb.detect(img, None)
             kpo, des = orb.compute(img, kpo)
             img = cv2.drawKeypoints(img, kpo, None, color=(0, 255, 0), flags=0)
-            return img
+            if visual:
+                return img
+            else:
+                return kpo, des
 
         # shi-tomasi corner detector
         if detector == "shi":
@@ -64,7 +92,10 @@ class Camera:
             for i in corners:
                 x, y = i.ravel()
                 cv2.circle(img, center=(x, y), radius=3, color=(255, 0, 255), thickness=-1)
-            return img
+            if visual:
+                return img
+            else:
+                return corners
 
         # harris corner detector
         if detector == "harris":
@@ -79,47 +110,65 @@ class Camera:
                 for j in range(dst_norm.shape[1]):
                     if int(dst_norm[i, j]) > thresh:
                         cv2.circle(dst_norm_scaled, center=(j, i), radius=5, color=0)
-            return dst_norm_scaled
+            if visual:
+                return dst_norm_scaled
+            else:
+                return dst, img
 
         if detector == "sift":
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             sift = cv2.xfeatures2d.SIFT_create()
             kps, desc = sift.detectAndCompute(img, None)
             img = cv2.drawKeypoints(img, kps, None, color=(0, 255, 0), flags=0)
-            return img
+            if visual:
+                return img
+            else:
+                return kps, desc
 
         if detector == "surf":
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             surf = cv2.xfeatures2d.SURF_create()
             kps, desc = surf.detectAndCompute(img, None)
             img = cv2.drawKeypoints(img, kps, None, color=(0, 255, 0), flags=0)
-            return img
+            if visual:
+                return img
+            else:
+                return kps, desc
 
         if detector == "kaze":
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             kaze = cv2.KAZE_create()
             kps, desc = kaze.detectAndCompute(img, None)
             img = cv2.drawKeypoints(img, kps, None, color=(0, 255, 0), flags=0)
-            return img
+            if visual:
+                return img
+            else:
+                return kps, desc
 
         if detector == "akaze":
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             akaze = cv2.AKAZE_create()
             kps, desc = akaze.detectAndCompute(img, None)
             img = cv2.drawKeypoints(img, kps, None, color=(0, 255, 0), flags=0)
-            return img
+            if visual:
+                return img
+            else:
+                return kps, desc
 
         if detector == "brisk":
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             brisk = cv2.BRISK_create()
             kps, desc = brisk.detectAndCompute(img, None)
             img = cv2.drawKeypoints(img, kps, None, color=(0, 255, 0), flags=0)
-            return img
+            if visual:
+                return img
+            else:
+                return kps, desc
 
         else:
             print("detector not implemented. Try using one of the following: orb, fast, shi, harris")
 
-    def compare_features(self, feat1="orb", feat2="fast", feat3="shi", feat4="harris"):
+    def compare_features(self, feat1="orb", feat2="surf", feat3="sift", feat4="akaze"):
         """
         compares up to four feature finding functions
 
@@ -144,7 +193,7 @@ class Camera:
 
     def find_features_video(self, detector="shi"):
 
-        while(True):
+        while (True):
             # read from video input
             _, img = self.cam.read()
 
@@ -157,6 +206,7 @@ class Camera:
         self.cam.release()
         cv2.destroyAllWindows()
 
+    # TODO still open
     def calibrate(self):
         # here should be a calibration function as we should be able to use different webcams and phones
         patternsize = (7, 7)
@@ -172,4 +222,3 @@ class Camera:
             print("no pattern found")
 
         # cv2.calibrateCamera()
-
