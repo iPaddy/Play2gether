@@ -58,9 +58,8 @@ class Camera:
         # store good matches
         good = []
         for m, n in matches:
-            if m.distance < 0.8*n.distance:
+            if m.distance < 0.6*n.distance:
                 good.append(m)
-        # TODO sort out double matches as done in assignment
 
         # enough matches are found
         if len(good) > min_n_matches:
@@ -77,7 +76,7 @@ class Camera:
             # draw rectangle around found board
             img2 = cv2.polylines(img, [np.int32(dst)], True, 255, 3, cv2.LINE_AA)
             # transform live view to one viewing from the top of the board
-            #self.transform_to_birdview(img, M, (h, w))
+            self.transform_to_birdview(img, M, (h, w))
 
         else:
             print("Not enough matches are found - {}/{}".format(len(good), min_n_matches))
@@ -91,7 +90,8 @@ class Camera:
     def transform_to_birdview(self,img, M, dsize):
         # transform to overview
         print("transformation matrix: ", M)
-        cv2.warpAffine(img, M, dsize)
+        #img = cv2.warpPerspective(img, M, dsize)
+        plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), 'gray'), plt.show()
 
     def find_features(self, detector="orb", test=False, visual=False, img_loc=None, img=None):
         """
