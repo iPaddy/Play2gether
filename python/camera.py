@@ -8,7 +8,7 @@ class Camera:
         self.cam = cv2.VideoCapture(video_feed)
 
     def show_video(self):
-        while (True):
+        while True:
             ret, frame = self.cam.read()
 
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -26,35 +26,41 @@ class Camera:
         return img
 
     def load_test_image(self):
-        img = cv2.imread("pics/test_board.png")
+        img = cv2.imread("pics/test_board3.jpg")
+        #img = cv2.imread("pics/test_board3.jpg")
         # img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         # plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)), plt.show()
         return img
 
-    def load_board_reference(self):
-        img = cv2.resize(cv2.imread("pics/board.jpg"), (640, 480))
-        kps, desc = self.find_features("surf", test=False, visual=False, img=img)
+    def load_board_reference(self, detector="sift"):
+        img = cv2.imread("pics/board2.jpg")
+        kps, desc = self.find_features(detector, test=False, visual=False, img=img)
         # plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)), plt.show()
-        return kps, desc
+        return kps, desc, img
 
-    def find_board(self, min_n_matches=10):
-        board_img = cv2.resize(cv2.imread("pics/board.jpg"), (640, 480))
-        # img = self.load_test_image()
-        _, img = self.cam.read()
-        kp1, desc1 = self.load_board_reference()
-        kp2, desc2 = self.find_features(detector="surf", visual=False)
+    def find_board(self, min_n_matches=10, test=False, detector="sift"):
+        # board_img = cv2.resize(cv2.imread("pics/board2.jpg"), (640, 480))
+        if test:
+            img = self.load_test_image()
+        else:
+            _, img = self.cam.read()
+        kp1, desc1, board_img = self.load_board_reference(detector)
+        kp2, desc2 = self.find_features(detector, visual=False, img=img)
 
         flann_index = 1
         index_params = dict(algorithm=flann_index, trees=5)
         search_params = dict(checks=50)
 
-        flann = cv2.FlannBasedMatcher(index_params, search_params)
-        matches = flann.knnMatch(desc1, desc2, k=2)
+        #flann = cv2.FlannBasedMatcher(index_params, search_params)
+        #matches = flann.knnMatch(desc1, desc2, k=2)
+        matcher = cv2.BFMatcher(cv2.NORM_HAMMING2)
+        matches = matcher.knnMatch(desc1, desc2, k=2)
         # store good matches
         good = []
         for m, n in matches:
-            if m.distance < 0.7*n.distance:
+            if m.distance < 0.8*n.distance:
                 good.append(m)
+        # TODO sort out double matches as done in assignment
 
         # enough matches are found
         if len(good) > min_n_matches:
@@ -62,19 +68,30 @@ class Camera:
             dst_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
 
             M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-            matchesMask = mask.ravel().tolist()
+            matches_mask = mask.ravel().tolist()
             h, w, d = board_img.shape
+            # corner points
             pts = np.float32([[0, 0], [0, h - 1], [w - 1, h - 1], [w - 1, 0]]).reshape(-1, 1, 2)
+            # destination of corner points
             dst = cv2.perspectiveTransform(pts, M)
+            # draw rectangle around found board
             img2 = cv2.polylines(img, [np.int32(dst)], True, 255, 3, cv2.LINE_AA)
+            # transform live view to one viewing from the top of the board
+            #self.transform_to_birdview(img, M, (h, w))
 
         else:
             print("Not enough matches are found - {}/{}".format(len(good), min_n_matches))
-            matchesMask = None
+            matches_mask = None
+            return
 
-        draw_params = dict(matchColor=(0, 255, 0), singlePointColor=None, matchesMask=matchesMask, flags=2)
+        draw_params = dict(matchColor=(0, 255, 0), singlePointColor=None, matchesMask=matches_mask, flags=2)
         out_img = cv2.drawMatches(board_img, kp1, img2, kp2, good, None, **draw_params)
         plt.imshow(cv2.cvtColor(out_img, cv2.COLOR_BGR2RGB), 'gray'), plt.show()
+
+    def transform_to_birdview(self,img, M, dsize):
+        # transform to overview
+        print("transformation matrix: ", M)
+        cv2.warpAffine(img, M, dsize)
 
     def find_features(self, detector="orb", test=False, visual=False, img_loc=None, img=None):
         """
@@ -154,6 +171,7 @@ class Camera:
             else:
                 return dst, img
 
+        # needs opencv-contrib-python and is a pain to set up correctly
         if detector == "sift":
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             sift = cv2.xfeatures2d.SIFT_create()
@@ -164,6 +182,7 @@ class Camera:
             else:
                 return kps, desc
 
+        # needs opencv-contrib-python and is a pain to set up correctly
         if detector == "surf":
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             surf = cv2.xfeatures2d.SURF_create()
@@ -207,16 +226,16 @@ class Camera:
         else:
             print("detector not implemented. Try using one of the following: orb, fast, shi, harris")
 
-    def compare_features(self, feat1="orb", feat2="surf", feat3="sift", feat4="akaze"):
+    def compare_features(self, feat1="orb", feat2="surf", feat3="sift", feat4="akaze", img_loc=None):
         """
         compares up to four feature finding functions
 
         plotting them against each other in a grid
         """
-        img0 = self.find_features(feat1, visual=True)
-        img1 = self.find_features(feat2, visual=True)
-        img2 = self.find_features(feat3, visual=True)
-        img3 = self.find_features(feat4, visual=True)
+        img0 = self.find_features(feat1, visual=True, img_loc=img_loc)
+        img1 = self.find_features(feat2, visual=True, img_loc=img_loc)
+        img2 = self.find_features(feat3, visual=True, img_loc=img_loc)
+        img3 = self.find_features(feat4, visual=True, img_loc=img_loc)
 
         fig = plt.figure(figsize=(4, 4))
         fig.add_subplot(2, 2, 1)
