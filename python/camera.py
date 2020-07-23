@@ -6,19 +6,51 @@ from matplotlib import pyplot as plt
 class Camera:
     def __init__(self, video_feed=0):
         self.cam = cv2.VideoCapture(video_feed)
+        #self.cam.set(3, 1920)
+        #self.cam.set(4, 1200)
+        self.hom = None
+        self.frame = None
 
-    def show_video(self):
+    def show_video(self, color="all"):
         while True:
-            ret, frame = self.cam.read()
+            ret, self.frame = self.cam.read()
+            h, w, c = self.frame.shape
 
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            #gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            hsv = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV)
+            if color == "red":
+                lower_red = np.array([120, 180, 120])
+                upper_red = np.array([255, 255, 255])
+                red_mask = cv2.inRange(hsv, lower_red, upper_red)
+                self.frame = cv2.bitwise_and(self.frame, self.frame, mask=red_mask)
+            if color == "blue":
+                lower_blue = np.array([100, 80, 70])
+                upper_blue = np.array([150, 255, 180])
+                blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
+                self.frame = cv2.bitwise_and(self.frame, self.frame, mask=blue_mask)
+            if color == "green":
+                lower_green = np.array([40, 140, 70])
+                upper_green = np.array([90, 250, 255])
+                green_mask = cv2.inRange(hsv, lower_green, upper_green)
+                self.frame = cv2.bitwise_and(self.frame, self.frame, mask=green_mask)
+            if color == "yellow":
+                lower_yellow = np.array([20, 180, 150])
+                upper_yellow = np.array([150, 255, 255])
+                yellow_mask = cv2.inRange(hsv, lower_yellow, upper_yellow)
+                self.frame = cv2.bitwise_and(self.frame, self.frame, mask=yellow_mask)
 
-            cv2.imshow('frame', gray)
+            if self.hom is not None:
+                warped = cv2.warpPerspective(self.frame, self.hom, (w, h))
+                cv2.imshow('frame', warped)
+            else:
+                cv2.imshow('frame', self.frame)
+
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
         self.cam.release()
         cv2.destroyAllWindows()
+
 
     def take_picture(self):
         _, img = self.cam.read()
@@ -32,13 +64,13 @@ class Camera:
         # plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)), plt.show()
         return img
 
-    def load_board_reference(self, detector="sift"):
+    def load_board_reference(self, detector="akaze"):
         img = cv2.imread("pics/board2.jpg")
         kps, desc = self.find_features(detector, test=False, visual=False, img=img)
         # plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)), plt.show()
         return kps, desc, img
 
-    def find_board(self, min_n_matches=10, test=False, detector="sift"):
+    def find_board(self, min_n_matches=10, test=False, detector="akaze"):
         # board_img = cv2.resize(cv2.imread("pics/board2.jpg"), (640, 480))
         if test:
             img = self.load_test_image()
@@ -58,7 +90,7 @@ class Camera:
         # store good matches
         good = []
         for m, n in matches:
-            if m.distance < 0.6*n.distance:
+            if m.distance < 0.7*n.distance:
                 good.append(m)
 
         # enough matches are found
@@ -75,8 +107,13 @@ class Camera:
             dst = cv2.perspectiveTransform(pts, M)
             # draw rectangle around found board
             img2 = cv2.polylines(img, [np.int32(dst)], True, 255, 3, cv2.LINE_AA)
+
             # transform live view to one viewing from the top of the board
-            self.transform_to_birdview(img, M, (h, w))
+            self.hom, _ = cv2.findHomography(dst_pts, src_pts, cv2.RANSAC, 5.0)
+            print(self.hom)
+            if test:
+                h, w, c = img.shape
+                self.transform_to_birdview(img, self.hom, (w, h))
 
         else:
             print("Not enough matches are found - {}/{}".format(len(good), min_n_matches))
@@ -87,11 +124,11 @@ class Camera:
         out_img = cv2.drawMatches(board_img, kp1, img2, kp2, good, None, **draw_params)
         plt.imshow(cv2.cvtColor(out_img, cv2.COLOR_BGR2RGB), 'gray'), plt.show()
 
-    def transform_to_birdview(self,img, M, dsize):
+    def transform_to_birdview(self, img, M, dsize):
         # transform to overview
         print("transformation matrix: ", M)
-        #img = cv2.warpPerspective(img, M, dsize)
-        plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), 'gray'), plt.show()
+        warped_img = cv2.warpPerspective(img, M, dsize)
+        plt.imshow(cv2.cvtColor(warped_img, cv2.COLOR_BGR2RGB), 'gray'), plt.show()
 
     def find_features(self, detector="orb", test=False, visual=False, img_loc=None, img=None):
         """
@@ -280,3 +317,21 @@ class Camera:
             print("no pattern found")
 
         # cv2.calibrateCamera()
+
+    def find_piece(self, img):
+        """
+        TODO
+        1. find the color value of the pieces with a picture of all 4
+        do this in hsv color space as brightness does not play a role there
+        calibration also with camera picture
+
+        2. improve resolution of the camera
+        is it bound by droidcam, the socket or python?
+
+        3. train detection of pieces with set of positive and negative samples
+        do this in gray pictures and check with color filters in a range for which piece it is
+        """
+        piece_data = cv2.CascadeClassifier()
+        found = piece_data.detectMultiScale(img, minSize=(5, 5))
+        amount_found = len(found)
+        print("Pieces found: ", amount_found)
