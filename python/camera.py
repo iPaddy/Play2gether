@@ -1,13 +1,13 @@
 import numpy as np
 import cv2
 from matplotlib import pyplot as plt
+import helper
 
 
 class Camera:
     def __init__(self, video_feed=0):
         self.cam = cv2.VideoCapture(video_feed)
-        #self.cam.set(3, 1920)
-        #self.cam.set(4, 1200)
+        #print(self.cam.get(cv2.CAP_PROP_AUTO_WB))
         self.hom = None
         self.frame = None
 
@@ -24,29 +24,38 @@ class Camera:
                 red_mask = cv2.inRange(hsv, lower_red, upper_red)
                 self.frame = cv2.bitwise_and(self.frame, self.frame, mask=red_mask)
             if color == "blue":
-                lower_blue = np.array([100, 80, 70])
-                upper_blue = np.array([150, 255, 180])
+                lower_blue = np.array([100, 80, 0])
+                upper_blue = np.array([150, 255, 255])
                 blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
                 self.frame = cv2.bitwise_and(self.frame, self.frame, mask=blue_mask)
             if color == "green":
-                lower_green = np.array([40, 140, 70])
-                upper_green = np.array([90, 250, 255])
+                lower_green = np.array([40, 120, 0])
+                upper_green = np.array([90, 255, 255])
                 green_mask = cv2.inRange(hsv, lower_green, upper_green)
                 self.frame = cv2.bitwise_and(self.frame, self.frame, mask=green_mask)
             if color == "yellow":
-                lower_yellow = np.array([20, 180, 150])
-                upper_yellow = np.array([150, 255, 255])
+                lower_yellow = np.array([20, 180, 180])
+                upper_yellow = np.array([80, 255, 255])
                 yellow_mask = cv2.inRange(hsv, lower_yellow, upper_yellow)
                 self.frame = cv2.bitwise_and(self.frame, self.frame, mask=yellow_mask)
+            if color == "white":
+                lower_white = np.array([40, 0, 0])
+                upper_white = np.array([255, 80, 255])
+                white_mask = cv2.inRange(hsv, lower_white, upper_white)
+                self.frame = cv2.bitwise_and(self.frame, self.frame, mask=white_mask)
 
             if self.hom is not None:
                 warped = cv2.warpPerspective(self.frame, self.hom, (w, h))
                 cv2.imshow('frame', warped)
             else:
-                cv2.imshow('frame', self.frame)
+                tmp_frame = self.frame
+                self.frame = helper.white_balance(self.frame)
+                cv2.imshow('live video', self.frame)
+                #cv2.imshow('frame2', tmp_frame)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
+
 
         self.cam.release()
         cv2.destroyAllWindows()
@@ -65,7 +74,7 @@ class Camera:
         return img
 
     def load_board_reference(self, detector="akaze"):
-        img = cv2.imread("pics/board2.jpg")
+        img = cv2.resize(cv2.imread("pics/board2.jpg"), (1920, 1920))
         kps, desc = self.find_features(detector, test=False, visual=False, img=img)
         # plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)), plt.show()
         return kps, desc, img
@@ -128,7 +137,7 @@ class Camera:
         # transform to overview
         print("transformation matrix: ", M)
         warped_img = cv2.warpPerspective(img, M, dsize)
-        plt.imshow(cv2.cvtColor(warped_img, cv2.COLOR_BGR2RGB), 'gray'), plt.show()
+        #plt.imshow(cv2.cvtColor(warped_img, cv2.COLOR_BGR2RGB), 'gray'), plt.show()
 
     def find_features(self, detector="orb", test=False, visual=False, img_loc=None, img=None):
         """
@@ -304,9 +313,9 @@ class Camera:
     # TODO still open
     def calibrate(self):
         # here should be a calibration function as we should be able to use different webcams and phones
-        patternsize = (7, 7)
-        # _, frame = self.cam.read()
-        frame = self.load_test_image()
+        patternsize = (8, 8)
+        _ , frame = self.cam.read()
+        #frame = self.load_test_image()
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         patternfound, corners = cv2.findChessboardCorners(gray, patternsize)
         if patternfound:
@@ -318,20 +327,34 @@ class Camera:
 
         # cv2.calibrateCamera()
 
-    def find_piece(self, img):
+    def find_piece(self):
         """
         TODO
-        1. find the color value of the pieces with a picture of all 4
-        do this in hsv color space as brightness does not play a role there
-        calibration also with camera picture
 
-        2. improve resolution of the camera
-        is it bound by droidcam, the socket or python?
-
-        3. train detection of pieces with set of positive and negative samples
+        train detection of pieces with set of positive and negative samples
         do this in gray pictures and check with color filters in a range for which piece it is
         """
-        piece_data = cv2.CascadeClassifier()
-        found = piece_data.detectMultiScale(img, minSize=(5, 5))
-        amount_found = len(found)
-        print("Pieces found: ", amount_found)
+        #piece_data = cv2.CascadeClassifier()
+        #found = piece_data.detectMultiScale(img, minSize=(5, 5))
+        #amount_found = len(found)
+        #print("Pieces found: ", amount_found)
+
+        #img = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
+        _, img = self.cam.read()
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        #params = cv2.SimpleBlobDetector_Params()
+        #params.minThreshold = 1
+        #params.maxThreshold = 255
+        #params.filterByArea = True
+        #params.minArea = 1
+        #params.filterByCircularity = False
+        #params.filterByConvexity = False
+        #params.filterByInertia = False
+        #detector = cv2.SimpleBlobDetector(params)
+        #detector = cv2.SimpleBlobDetector_create(params)
+        detector = cv2.SimpleBlobDetector_create()
+        keypoints = detector.detect(gray)
+        img_with_detections = cv2.drawKeypoints(gray, keypoints,np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+        cv2.imshow("Detected Blobs", img_with_detections)
+        cv2.waitKey(0)
+
