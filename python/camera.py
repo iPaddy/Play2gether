@@ -11,25 +11,23 @@ class Camera:
         #self.cam.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
         #print(self.cam.get(cv2.CAP_PROP_AUTO_EXPOSURE))
         self.hom = None
-        self.frame = None
-        self.board_ref = None
+        self.frame = self.cam.read()
+        self.board_ref = cv2.resize(cv2.imread("pics/board2.jpg"), (1080, 1080))
 
     def show_video(self, color="all"):
         while True:
             ret, self.frame = self.cam.read()
-            h, w, c = self.frame.shape
-            img = cv2.resize(cv2.imread("pics/board2.jpg"), (1080, 1080))
-            h_b, w_b, c_w = img.shape
-            print("w: ", w, "w_b: ", w_b, "h: ", h, "h_b: ", h_b)
 
             if color != "all":
                 self.frame, _ = helper.filter_color(self.frame, color)
 
             if self.hom is not None:
+                h_b, w_b, c_w = self.board_ref.shape
                 warped = cv2.warpPerspective(self.frame, self.hom, (w_b, h_b))
                 # here it should warp correctly but it cuts the lower third
                 #warped, _ = helper.filter_color(warped, "white")
-                cv2.imshow('frame', warped)
+                self.find_color_piece(color)
+                #cv2.imshow('frame', warped)
             else:
                 tmp_frame = self.frame
                 self.frame = helper.white_balance(self.frame)
@@ -59,7 +57,6 @@ class Camera:
         return img
 
     def load_board_reference(self, detector="akaze"):
-        self.board_ref= cv2.resize(cv2.imread("pics/board2.jpg"), (1080, 1080))
         kps, desc = self.find_features(detector, test=False, visual=False, img=self.board_ref)
         # plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)), plt.show()
         return kps, desc, self.board_ref
@@ -104,10 +101,6 @@ class Camera:
 
             # transform live view to one viewing from the top of the board
             self.hom, _ = cv2.findHomography(dst_pts, src_pts, cv2.RANSAC, 5.0)
-            #self.hom, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-            if test:
-                h, w, c = img.shape
-                self.transform_to_birdview(img, self.hom, (w, h))
 
         else:
             print("Not enough matches are found - {}/{}".format(len(good), min_n_matches))
@@ -117,12 +110,6 @@ class Camera:
         draw_params = dict(matchColor=(0, 255, 0), singlePointColor=None, matchesMask=matches_mask, flags=2)
         out_img = cv2.drawMatches(board_img, kp1, img2, kp2, good, None, **draw_params)
         plt.imshow(cv2.cvtColor(out_img, cv2.COLOR_BGR2RGB), 'gray'), plt.show()
-
-    def transform_to_birdview(self, img, M, dsize):
-        # transform to overview
-        print("transformation matrix: ", M)
-        warped_img = cv2.warpPerspective(img, M, dsize)
-        #plt.imshow(cv2.cvtColor(warped_img, cv2.COLOR_BGR2RGB), 'gray'), plt.show()
 
     def find_features(self, detector="orb", test=False, visual=False, img_loc=None, img=None):
         """
@@ -365,3 +352,6 @@ class Camera:
                                                 cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
         cv2.imshow(color + " Blobs", img_with_detections)
         #cv2.waitKey(0)
+
+    def board_positions(self):
+        self.load_board_reference()
