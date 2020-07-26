@@ -18,9 +18,13 @@ def filter_color(frame, color="all"):
     # red, blue, green, yellow and white
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     if color == "red":
-        lower_red = np.array([120, 180, 120])
-        upper_red = np.array([255, 255, 255])
-        red_mask = cv2.inRange(hsv, lower_red, upper_red)
+        lower_red = np.array([0, 120, 70])
+        upper_red = np.array([10, 255, 255])
+        lower_red2 = np.array([170, 150, 70])
+        upper_red2 = np.array([180, 255, 255])
+        red_mask1 = cv2.inRange(hsv, lower_red, upper_red)
+        red_mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+        red_mask = red_mask1 + red_mask2
         return cv2.bitwise_and(frame, frame, mask=red_mask), red_mask
     if color == "blue":
         lower_blue = np.array([100, 80, 0])
@@ -28,17 +32,17 @@ def filter_color(frame, color="all"):
         blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
         return cv2.bitwise_and(frame, frame, mask=blue_mask), blue_mask
     if color == "green":
-        lower_green = np.array([40, 120, 0])
+        lower_green = np.array([40, 120, 40])
         upper_green = np.array([90, 255, 255])
         green_mask = cv2.inRange(hsv, lower_green, upper_green)
         return cv2.bitwise_and(frame, frame, mask=green_mask), green_mask
     if color == "yellow":
-        lower_yellow = np.array([20, 180, 180])
+        lower_yellow = np.array([18, 180, 180])
         upper_yellow = np.array([80, 255, 255])
         yellow_mask = cv2.inRange(hsv, lower_yellow, upper_yellow)
         return cv2.bitwise_and(frame, frame, mask=yellow_mask), yellow_mask
     if color == "white":
         lower_white = np.array([0, 0, 200])
-        upper_white = np.array([255, 70, 255])
+        upper_white = np.array([255, 40, 255])
         white_mask = cv2.inRange(hsv, lower_white, upper_white)
         return cv2.bitwise_and(frame, frame, mask=white_mask), white_mask

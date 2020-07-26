@@ -12,17 +12,21 @@ class Camera:
         #print(self.cam.get(cv2.CAP_PROP_AUTO_EXPOSURE))
         self.hom = None
         self.frame = None
+        self.board_ref = None
 
     def show_video(self, color="all"):
         while True:
             ret, self.frame = self.cam.read()
             h, w, c = self.frame.shape
+            img = cv2.resize(cv2.imread("pics/board2.jpg"), (1080, 1080))
+            h_b, w_b, c_w = img.shape
+            print("w: ", w, "w_b: ", w_b, "h: ", h, "h_b: ", h_b)
 
             if color != "all":
                 self.frame, _ = helper.filter_color(self.frame, color)
 
             if self.hom is not None:
-                warped = cv2.warpPerspective(self.frame, self.hom, (w, h))
+                warped = cv2.warpPerspective(self.frame, self.hom, (w_b, h_b))
                 # here it should warp correctly but it cuts the lower third
                 #warped, _ = helper.filter_color(warped, "white")
                 cv2.imshow('frame', warped)
@@ -30,7 +34,9 @@ class Camera:
                 tmp_frame = self.frame
                 self.frame = helper.white_balance(self.frame)
                 cv2.imshow('live video', self.frame)
-                cv2.imshow('frame2', tmp_frame)
+                #self.find_white()
+                self.find_color_piece(color)
+                #cv2.imshow('frame2', tmp_frame)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
@@ -53,10 +59,10 @@ class Camera:
         return img
 
     def load_board_reference(self, detector="akaze"):
-        img = cv2.resize(cv2.imread("pics/board2.jpg"), (1920, 1920))
-        kps, desc = self.find_features(detector, test=False, visual=False, img=img)
+        self.board_ref= cv2.resize(cv2.imread("pics/board2.jpg"), (1080, 1080))
+        kps, desc = self.find_features(detector, test=False, visual=False, img=self.board_ref)
         # plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)), plt.show()
-        return kps, desc, img
+        return kps, desc, self.board_ref
 
     def find_board(self, min_n_matches=10, test=False, detector="akaze"):
         # board_img = cv2.resize(cv2.imread("pics/board2.jpg"), (640, 480))
@@ -98,6 +104,7 @@ class Camera:
 
             # transform live view to one viewing from the top of the board
             self.hom, _ = cv2.findHomography(dst_pts, src_pts, cv2.RANSAC, 5.0)
+            #self.hom, _ = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
             if test:
                 h, w, c = img.shape
                 self.transform_to_birdview(img, self.hom, (w, h))
@@ -305,41 +312,56 @@ class Camera:
 
         # cv2.calibrateCamera()
 
-    def find_piece(self):
-        """
-        TODO
-
-        train detection of pieces with set of positive and negative samples
-        do this in gray pictures and check with color filters in a range for which piece it is
-        """
-        #piece_data = cv2.CascadeClassifier()
-        #found = piece_data.detectMultiScale(img, minSize=(5, 5))
-        #amount_found = len(found)
-        #print("Pieces found: ", amount_found)
-
-        #img = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
+    def find_white(self):
+        # used to find the white on top of the pieces
         _, img = self.cam.read()
         img, mask = helper.filter_color(img, "white")
         mask = cv2.bitwise_not(mask)
-        #gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         params = cv2.SimpleBlobDetector_Params()
         params.minThreshold = 1
         params.maxThreshold = 255
         params.filterByArea = True
-        params.minArea = 90
+        params.minArea = 50
         params.maxArea = 200
         params.filterByCircularity = True
-        params.minCircularity = 0.35
+        params.minCircularity = 0.4
         params.maxCircularity = 1
         params.filterByConvexity = True
-        params.minConvexity = 0.6
+        params.minConvexity = 0.2
         params.maxConvexity = 1
-        params.filterByInertia = False
-        detector = cv2.SimpleBlobDetector(params)
+        params.filterByInertia = True
+        params.minInertiaRatio = 0.3
+        params.maxInertiaRatio = 1
         detector = cv2.SimpleBlobDetector_create(params)
-        #detector = cv2.SimpleBlobDetector_create()
         keypoints = detector.detect(mask)
-        img_with_detections = cv2.drawKeypoints(mask, keypoints,np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+        img_with_detections = cv2.drawKeypoints(mask, keypoints, np.array([]), (0, 0, 255),
+                                                cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
         cv2.imshow("Detected Blobs", img_with_detections)
-        cv2.waitKey(0)
+        #cv2.waitKey(0)
 
+    def find_color_piece(self, color="red"):
+        # find bigger blobs of the play pieces
+        _, img = self.cam.read()
+        img, mask = helper.filter_color(img, color)
+        mask = cv2.bitwise_not(mask)
+        params = cv2.SimpleBlobDetector_Params()
+        params.minThreshold = 1
+        params.maxThreshold = 255
+        params.filterByArea = True
+        params.minArea = 300
+        params.maxArea = 3000
+        params.filterByCircularity = True
+        params.minCircularity = 0.2
+        params.maxCircularity = 1
+        params.filterByConvexity = True
+        params.minConvexity = 0
+        params.maxConvexity = 1
+        params.filterByInertia = True
+        params.minInertiaRatio = 0.2
+        params.maxInertiaRatio = 1
+        detector = cv2.SimpleBlobDetector_create(params)
+        keypoints = detector.detect(mask)
+        img_with_detections = cv2.drawKeypoints(mask, keypoints, np.array([]), (0, 0, 255),
+                                                cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+        cv2.imshow(color + " Blobs", img_with_detections)
+        #cv2.waitKey(0)
