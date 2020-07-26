@@ -7,7 +7,9 @@ import helper
 class Camera:
     def __init__(self, video_feed=0):
         self.cam = cv2.VideoCapture(video_feed)
-        #print(self.cam.get(cv2.CAP_PROP_AUTO_WB))
+        #self.cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 1440)
+        #self.cam.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+        #print(self.cam.get(cv2.CAP_PROP_AUTO_EXPOSURE))
         self.hom = None
         self.frame = None
 
@@ -16,42 +18,19 @@ class Camera:
             ret, self.frame = self.cam.read()
             h, w, c = self.frame.shape
 
-            #gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            hsv = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV)
-            if color == "red":
-                lower_red = np.array([120, 180, 120])
-                upper_red = np.array([255, 255, 255])
-                red_mask = cv2.inRange(hsv, lower_red, upper_red)
-                self.frame = cv2.bitwise_and(self.frame, self.frame, mask=red_mask)
-            if color == "blue":
-                lower_blue = np.array([100, 80, 0])
-                upper_blue = np.array([150, 255, 255])
-                blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
-                self.frame = cv2.bitwise_and(self.frame, self.frame, mask=blue_mask)
-            if color == "green":
-                lower_green = np.array([40, 120, 0])
-                upper_green = np.array([90, 255, 255])
-                green_mask = cv2.inRange(hsv, lower_green, upper_green)
-                self.frame = cv2.bitwise_and(self.frame, self.frame, mask=green_mask)
-            if color == "yellow":
-                lower_yellow = np.array([20, 180, 180])
-                upper_yellow = np.array([80, 255, 255])
-                yellow_mask = cv2.inRange(hsv, lower_yellow, upper_yellow)
-                self.frame = cv2.bitwise_and(self.frame, self.frame, mask=yellow_mask)
-            if color == "white":
-                lower_white = np.array([40, 0, 0])
-                upper_white = np.array([255, 80, 255])
-                white_mask = cv2.inRange(hsv, lower_white, upper_white)
-                self.frame = cv2.bitwise_and(self.frame, self.frame, mask=white_mask)
+            if color != "all":
+                self.frame, _ = helper.filter_color(self.frame, color)
 
             if self.hom is not None:
                 warped = cv2.warpPerspective(self.frame, self.hom, (w, h))
+                # here it should warp correctly but it cuts the lower third
+                #warped, _ = helper.filter_color(warped, "white")
                 cv2.imshow('frame', warped)
             else:
                 tmp_frame = self.frame
                 self.frame = helper.white_balance(self.frame)
                 cv2.imshow('live video', self.frame)
-                #cv2.imshow('frame2', tmp_frame)
+                cv2.imshow('frame2', tmp_frame)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
@@ -119,7 +98,6 @@ class Camera:
 
             # transform live view to one viewing from the top of the board
             self.hom, _ = cv2.findHomography(dst_pts, src_pts, cv2.RANSAC, 5.0)
-            print(self.hom)
             if test:
                 h, w, c = img.shape
                 self.transform_to_birdview(img, self.hom, (w, h))
@@ -341,20 +319,27 @@ class Camera:
 
         #img = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
         _, img = self.cam.read()
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        #params = cv2.SimpleBlobDetector_Params()
-        #params.minThreshold = 1
-        #params.maxThreshold = 255
-        #params.filterByArea = True
-        #params.minArea = 1
-        #params.filterByCircularity = False
-        #params.filterByConvexity = False
-        #params.filterByInertia = False
-        #detector = cv2.SimpleBlobDetector(params)
-        #detector = cv2.SimpleBlobDetector_create(params)
-        detector = cv2.SimpleBlobDetector_create()
-        keypoints = detector.detect(gray)
-        img_with_detections = cv2.drawKeypoints(gray, keypoints,np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+        img, mask = helper.filter_color(img, "white")
+        mask = cv2.bitwise_not(mask)
+        #gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        params = cv2.SimpleBlobDetector_Params()
+        params.minThreshold = 1
+        params.maxThreshold = 255
+        params.filterByArea = True
+        params.minArea = 90
+        params.maxArea = 200
+        params.filterByCircularity = True
+        params.minCircularity = 0.35
+        params.maxCircularity = 1
+        params.filterByConvexity = True
+        params.minConvexity = 0.6
+        params.maxConvexity = 1
+        params.filterByInertia = False
+        detector = cv2.SimpleBlobDetector(params)
+        detector = cv2.SimpleBlobDetector_create(params)
+        #detector = cv2.SimpleBlobDetector_create()
+        keypoints = detector.detect(mask)
+        img_with_detections = cv2.drawKeypoints(mask, keypoints,np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
         cv2.imshow("Detected Blobs", img_with_detections)
         cv2.waitKey(0)
 
