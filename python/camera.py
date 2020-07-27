@@ -12,7 +12,11 @@ class Camera:
         #print(self.cam.get(cv2.CAP_PROP_AUTO_EXPOSURE))
         self.hom = None
         self.frame = self.cam.read()
+        self.colors = ["red", "green", "blue", "yellow"]
         self.board_ref = cv2.resize(cv2.imread("pics/board2.jpg"), (1080, 1080))
+        self.board_ref_retouched = cv2.resize(cv2.imread("pics/board2_retouched.jpg"), (1080, 1080))
+        self.board_pos = self.board_positions()
+        print(self.board_pos)
 
     def show_video(self, color="all"):
         while True:
@@ -23,18 +27,19 @@ class Camera:
 
             if self.hom is not None:
                 h_b, w_b, c_w = self.board_ref.shape
+                self.frame = self.find_color_piece(self.frame)
                 warped = cv2.warpPerspective(self.frame, self.hom, (w_b, h_b))
-                # here it should warp correctly but it cuts the lower third
-                #warped, _ = helper.filter_color(warped, "white")
-                self.find_color_piece(color)
-                #cv2.imshow('frame', warped)
+                #warped, _ = helper.filter_color(warped, "all")
+                #self.find_color(color)
+                cv2.imshow('frame', warped)
             else:
                 tmp_frame = self.frame
                 self.frame = helper.white_balance(self.frame)
                 cv2.imshow('live video', self.frame)
                 #self.find_white()
-                self.find_color_piece(color)
-                #cv2.imshow('frame2', tmp_frame)
+                print("searching for player pieces")
+                self.find_color(color)
+                cv2.imshow('frame2', tmp_frame)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
@@ -42,7 +47,6 @@ class Camera:
 
         self.cam.release()
         cv2.destroyAllWindows()
-
 
     def take_picture(self):
         _, img = self.cam.read()
@@ -61,7 +65,7 @@ class Camera:
         # plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)), plt.show()
         return kps, desc, self.board_ref
 
-    def find_board(self, min_n_matches=10, test=False, detector="akaze"):
+    def find_board(self, min_n_matches=10, test=False, detector="akaze", show_results=False):
         # board_img = cv2.resize(cv2.imread("pics/board2.jpg"), (640, 480))
         if test:
             img = self.load_test_image()
@@ -107,9 +111,10 @@ class Camera:
             matches_mask = None
             return
 
-        draw_params = dict(matchColor=(0, 255, 0), singlePointColor=None, matchesMask=matches_mask, flags=2)
-        out_img = cv2.drawMatches(board_img, kp1, img2, kp2, good, None, **draw_params)
-        plt.imshow(cv2.cvtColor(out_img, cv2.COLOR_BGR2RGB), 'gray'), plt.show()
+        if show_results:
+            draw_params = dict(matchColor=(0, 255, 0), singlePointColor=None, matchesMask=matches_mask, flags=2)
+            out_img = cv2.drawMatches(board_img, kp1, img2, kp2, good, None, **draw_params)
+            plt.imshow(cv2.cvtColor(out_img, cv2.COLOR_BGR2RGB), 'gray'), plt.show()
 
     def find_features(self, detector="orb", test=False, visual=False, img_loc=None, img=None):
         """
@@ -267,6 +272,9 @@ class Camera:
 
         plt.show()
 
+    def compare_colors(self):
+       return
+
     def find_features_video(self, detector="shi"):
 
         while (True):
@@ -282,51 +290,37 @@ class Camera:
         self.cam.release()
         cv2.destroyAllWindows()
 
-    # TODO still open
-    def calibrate(self):
-        # here should be a calibration function as we should be able to use different webcams and phones
-        patternsize = (8, 8)
-        _ , frame = self.cam.read()
-        #frame = self.load_test_image()
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        patternfound, corners = cv2.findChessboardCorners(gray, patternsize)
-        if patternfound:
-            print("pattern found @: ", corners)
-            cv2.cornerSubPix()
-            plt.imshow(gray), plt.show()
-        else:
-            print("no pattern found")
-
-        # cv2.calibrateCamera()
-
-    def find_white(self):
+    def find_white(self, visual=False):
         # used to find the white on top of the pieces
         _, img = self.cam.read()
         img, mask = helper.filter_color(img, "white")
+        #mask = helper.dilate(mask)
         mask = cv2.bitwise_not(mask)
         params = cv2.SimpleBlobDetector_Params()
         params.minThreshold = 1
         params.maxThreshold = 255
         params.filterByArea = True
-        params.minArea = 50
+        params.minArea = 40
         params.maxArea = 200
         params.filterByCircularity = True
         params.minCircularity = 0.4
         params.maxCircularity = 1
         params.filterByConvexity = True
-        params.minConvexity = 0.2
+        params.minConvexity = 0.1
         params.maxConvexity = 1
         params.filterByInertia = True
         params.minInertiaRatio = 0.3
         params.maxInertiaRatio = 1
         detector = cv2.SimpleBlobDetector_create(params)
         keypoints = detector.detect(mask)
-        img_with_detections = cv2.drawKeypoints(mask, keypoints, np.array([]), (0, 0, 255),
-                                                cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-        cv2.imshow("Detected Blobs", img_with_detections)
-        #cv2.waitKey(0)
+        if visual:
+            img_with_detections = cv2.drawKeypoints(mask, keypoints, np.array([]), (0, 0, 255),
+                                                    cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+            cv2.imshow("Detected Blobs", img_with_detections)
+            cv2.waitKey(0)
+        return keypoints
 
-    def find_color_piece(self, color="red"):
+    def find_color(self, color="red", visual=False):
         # find bigger blobs of the play pieces
         _, img = self.cam.read()
         img, mask = helper.filter_color(img, color)
@@ -348,10 +342,59 @@ class Camera:
         params.maxInertiaRatio = 1
         detector = cv2.SimpleBlobDetector_create(params)
         keypoints = detector.detect(mask)
-        img_with_detections = cv2.drawKeypoints(mask, keypoints, np.array([]), (0, 0, 255),
-                                                cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-        cv2.imshow(color + " Blobs", img_with_detections)
+        if visual:
+            img_with_detections = cv2.drawKeypoints(mask, keypoints, np.array([]), (0, 0, 255),
+                                                    cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+            cv2.imshow(color + " Blobs", img_with_detections)
+        return keypoints
         #cv2.waitKey(0)
 
-    def board_positions(self):
-        self.load_board_reference()
+    def find_color_piece(self, img):
+        color_code = {
+            "red": (0, 0, 255),
+            "blue": (255, 0, 0),
+            "green": (0, 255, 0),
+            "yellow": (0, 255, 255)
+        }
+        threshold = 60
+        keypoints_white = self.find_white()
+        for color in self.colors:
+            keypoints_pieces = []
+            keypoints = self.find_color(color)
+            for key in keypoints:
+                dst, pos = helper.smallest_distance(key, keypoints_white)
+                if dst < threshold:
+                    # TODO only use color on the best match
+                    keypoints_pieces.append(key)
+            img = cv2.drawKeypoints(img, keypoints_pieces, np.array([]), color_code[color],
+                                    cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+        #cv2.imshow("Board with found pieces: ", img)
+        return img
+
+    def board_positions(self, visual=False):
+        img, mask = helper.filter_color(self.board_ref_retouched, "black")
+        mask = helper.dilate(mask)
+        #mask = cv2.bitwise_not(mask)
+        params = cv2.SimpleBlobDetector_Params()
+        params.minThreshold = 1
+        params.maxThreshold = 255
+        params.filterByArea = True
+        params.minArea = 300
+        params.maxArea = 5000
+        params.filterByCircularity = True
+        params.minCircularity = 0.6
+        params.maxCircularity = 1
+        params.filterByConvexity = True
+        params.minConvexity = 0.0
+        params.maxConvexity = 1
+        params.filterByInertia = True
+        params.minInertiaRatio = 0.8
+        params.maxInertiaRatio = 1
+        detector = cv2.SimpleBlobDetector_create(params)
+        keypoints = detector.detect(mask)
+        img_with_detections = cv2.drawKeypoints(mask, keypoints, np.array([]), (0, 0, 255),
+                                                cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+        if visual:
+            cv2.imshow("board positions", img_with_detections)
+            cv2.waitKey(0)
+        return keypoints
